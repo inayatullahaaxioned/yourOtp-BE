@@ -1,10 +1,10 @@
-const { default: axios, all } = require("axios");
-const joi = require("joi");
-const mongoose = require("mongoose");
+const { default: axios } = require('axios');
+const joi = require('joi');
+const mongoose = require('mongoose');
 
 exports.getServers = async (req, res) => {
   try {
-    const servers = await mongoose.model("server").find();
+    const servers = await mongoose.model('server').find();
     return res.status(200).send({
       servers,
     });
@@ -16,11 +16,11 @@ exports.getServers = async (req, res) => {
   }
 };
 
-exports.getNumbers = async (req, res) => {
+exports.getServiceList = async (req, res) => {
   try {
-    const { serverId } = req.query;
+    const { serverId } = req.params;
 
-    const existingServer = await mongoose.model("server").findOne({
+    const existingServer = await mongoose.model('server').findOne({
       id: serverId,
     });
     if (!existingServer) {
@@ -31,14 +31,14 @@ exports.getNumbers = async (req, res) => {
 
     const options = {
       method: 'get',
-      url: `https://fastsms.su/stubs/handler_api.php?api_key=${process.env.API_KEY1}&action=getPrices&country=22`,
+      url: `https://fastsms.su/stubs/handler_api.php?api_key=${process.env.FASTSMS_API_KEY}&action=getPrices&country=22`,
     };
 
     const priceResponse = await axios(options);
 
     const options2 = {
       method: 'get',
-      url: `https://fastsms.su/stubs/handler_api.php?api_key=${process.env.API_KEY1}&action=getServices`,
+      url: `https://fastsms.su/stubs/handler_api.php?api_key=${process.env.FASTSMS_API_KEY}&action=getServices`,
     };
 
     const serviceNameRes = await axios(options2);
@@ -48,19 +48,22 @@ exports.getNumbers = async (req, res) => {
     const allServiceNames = serviceNameRes.data;
     const prices = priceResponse.data['22'];
 
+    // eslint-disable-next-line no-restricted-syntax, guard-for-in
     for (const key in allServiceNames) {
       const service = allServiceNames[key];
 
       const profitPercentage = process.env.PROFIT;
-      const price = prices.hasOwnProperty(key) ? Number(Object.keys(prices[key])[0] * profitPercentage).toPrecision(2) : 0;
+      // eslint-disable-next-line no-prototype-builtins
+      const price = prices.hasOwnProperty(key)
+        ? Number(Object.keys(prices[key])[0] * profitPercentage).toPrecision(2) : 0;
       serviceList.push({
         service: key,
         name: service,
         price,
-      })
+      });
     }
 
-    const allList = serviceList.filter(e => e.price > 0);
+    const allList = serviceList.filter((e) => e.price > 0);
     return res.status(200).send({
       services: allList,
     });
@@ -77,10 +80,10 @@ exports.buyNumbers = async (req, res) => {
     const { service, serverId } = req.body;
 
     const schema = joi.object({
-      service: joi.string().max(5).required().error(new Error("Please enter valid service.")),
+      service: joi.string().max(5).required().error(new Error('Please enter valid service.')),
       serverId: joi.number().required(),
     });
-    
+
     const result = await schema.validate(req.body);
 
     if (result.error) {
@@ -89,54 +92,76 @@ exports.buyNumbers = async (req, res) => {
       });
     }
 
-    const validServer = await mongoose.model("server").findOne({ id: serverId });
+    const validServer = await mongoose.model('server').findOne({ id: serverId });
     if (!validServer) {
       return res.status(400).send({
         error: 'Please enter valid serviceId.',
       });
     }
 
-    const amount = await mongoose.model("price")
+    const amount = await mongoose.model('price')
       .findOne({
-        service
+        service,
       })
-      .select({ amount: 1 });
+      .select({ _id: 0, price: 1 });
 
-      await mongoose.model("users").updateOne(
-        { _id: req.user._id },
-        { $inc : { balance: 50 } },
-    )
-    
-    const balanceOfUser = await mongoose.model("users")
+    const balanceOfUser = await mongoose.model('user')
       .findById(req.user._id)
-      .select({ balance: 1 });
-    
-    if (balanceOfUser < amount) {
+      .select({ _id: 0, balance: 1 });
+
+    console.log(balanceOfUser, amount);
+    if (balanceOfUser.balance < amount.price) {
       return res.status(400).send({
-        error: "Insufficient balance.",
+        error: 'Insufficient balance.',
       });
     }
 
     const options = {
       method: 'get',
-      url: `https://fastsms.su/stubs/handler_api.php?api_key=${process.env.API_KEY1}&action=getNumber&service=${service}&country=22`
+      url: `https://fastsms.su/stubs/handler_api.php?api_key=${process.env.FASTSMS_API_KEY}&action=getNumber&service=${service}&country=22`,
     };
 
     const response = await axios(options);
-    let number, activationId;
-    if (response.data) {
-      number = res.data.split(":")[2];
-      activationId = res.data.split(":")[1];
+    let number; let
+      activationId;
+    const { data } = response;
+    if (data) {
+      [, number, activationId] = data.split(':');
 
-      await mongoose.model("users").updateOne(
+      await mongoose.model('user').updateOne(
         { _id: req.user._id },
-        { $inc : { balance: -amount } },
-      )
+        { $inc: { balance: -amount.price } },
+      );
     }
     return res.status(200).send({
       number,
       activationId,
-    })
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send({
+      error: 'Internal Server Error',
+    });
+  }
+};
+
+exports.cancelNumber = async (req, res) => {
+  try {
+    const { activationId } = req.params;
+    if (activationId) {
+      return res.status(400).send({
+        error: 'Please provide activation id.',
+      });
+    }
+
+    const options = {
+      method: 'get',
+      url: `https://fastsms.su/stubs/handler_api.php?api_key={api_key}&action=setStatus&id=${activationId}&status=8`,
+    };
+    await axios(options);
+    return res.status(200).send({
+      message: 'Number Cancelled Successfully.',
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).send({
