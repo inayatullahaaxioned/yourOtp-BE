@@ -6,6 +6,8 @@ const {
   getServiceList,
   buyNumbers,
   cancelNumber,
+  anotherSms,
+  fetchOtp,
 } = require('../controllers/services');
 
 router.use(authenticate);
@@ -16,6 +18,10 @@ router.get('/servicelist/:serverId', getServiceList);
 
 router.post('/buyNumber', buyNumbers);
 
-router.post('/cancelNumber/:activationId', cancelNumber);
+router.get('/cancelNumber/:service/:activationId', cancelNumber);
+
+router.get('/anotherSms/:activationId', anotherSms);
+
+router.get('/fetchOtp/:activationId', fetchOtp);
 
 module.exports = router;

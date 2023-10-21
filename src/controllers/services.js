@@ -109,8 +109,10 @@ exports.buyNumbers = async (req, res) => {
       .findById(req.user._id)
       .select({ _id: 0, balance: 1 });
 
+    const { balance } = balanceOfUser;
+    const price = amount.price * process.env.PROFIT;
     console.log(balanceOfUser, amount);
-    if (balanceOfUser.balance < amount.price) {
+    if (balance < price) {
       return res.status(400).send({
         error: 'Insufficient balance.',
       });
@@ -147,7 +149,7 @@ exports.buyNumbers = async (req, res) => {
 
 exports.cancelNumber = async (req, res) => {
   try {
-    const { activationId } = req.params;
+    const { service, activationId } = req.params;
     if (activationId) {
       return res.status(400).send({
         error: 'Please provide activation id.',
@@ -158,9 +160,90 @@ exports.cancelNumber = async (req, res) => {
       method: 'get',
       url: `https://fastsms.su/stubs/handler_api.php?api_key={api_key}&action=setStatus&id=${activationId}&status=8`,
     };
-    await axios(options);
+    const response = await axios(options);
+    if (response.status === 200) {
+      const amount = await mongoose.model('price')
+        .findOne({ service })
+        .select({ _id: 0, price: 1 });
+
+      const price = amount.price * process.env.PROFIT;
+
+      await mongoose.model('user').updateOne(
+        { _id: req.user._id },
+        { $inc: { balance: price } },
+      );
+    }
     return res.status(200).send({
       message: 'Number Cancelled Successfully.',
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send({
+      error: 'Internal Server Error',
+    });
+  }
+};
+
+exports.anotherSms = async (req, res) => {
+  try {
+    const { activationId } = req.params;
+    if (activationId) {
+      return res.status(400).send({
+        error: 'Please provide activation id.',
+      });
+    }
+
+    const options = {
+      method: 'get',
+      url: `https://fastsms.su/stubs/handler_api.php?api_key={api_key}&action=setStatus&id=${activationId}&status=3`,
+    };
+    await axios(options);
+    return res.status(200).send({
+      message: 'Request sent successfully.',
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send({
+      error: 'Internal Server Error',
+    });
+  }
+};
+
+exports.fetchOtp = async (req, res) => {
+  try {
+    const { activationId } = req.params;
+    if (activationId) {
+      return res.status(400).send({
+        error: 'Please provide activation id.',
+      });
+    }
+
+    const options = {
+      method: 'get',
+      url: `https://fastsms.su/stubs/handler_api.php?api_key=${process.env.FASTSMS_API_KEY}&action=getStatus&id=${activationId}`,
+    };
+    const response = await axios(options);
+
+    if (response.statusText === 'STATUS_WAIT_CODE') {
+      res.status(200).send({
+        message: 'Waiting for Otp',
+      });
+    }
+
+    if (response.statusText === 'STATUS_CANCEL ') {
+      res.status(400).send({
+        message: 'Number Cancelled',
+      });
+    }
+
+    let otp = 0;
+    if (response.statusText === 'STATUS_OK:CODE') {
+      otp = response.data.otp;
+    }
+
+    return res.status(200).send({
+      Success: true,
+      otp,
     });
   } catch (error) {
     console.error(error);
