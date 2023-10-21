@@ -1,17 +1,16 @@
 const { Schema, model, default: mongoose } = require('mongoose');
 
-const priceSchema = new Schema({
-  service: {
+const serverSchema = new Schema({
+  name: {
     type: String,
-    maxLength: 5,
     required: true
   },
-  name: {
+  provider: {
     type: String,
     maxLength: 30,
     required: true
   },
-  price: {
+  id: {
     type: Number,
     required: true,
   },
@@ -19,6 +18,6 @@ const priceSchema = new Schema({
   timestamps: true,
 });
 
-module.exports = model('price', priceSchema);
+module.exports = model('server', serverSchema);
 
-priceSchema.clearIndexes({ service: 1 });
+serverSchema.clearIndexes({ service: 1 });
