@@ -23,7 +23,6 @@ exports.register = async (req, res) => {
       role: joi.string().valid('user', 'admin'),
     });
 
-    console.log(typeof (schema.validate(req.body)));
     const result = schema.validate(req.body);
 
     if (result.error) {

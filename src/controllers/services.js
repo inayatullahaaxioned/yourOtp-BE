@@ -111,7 +111,6 @@ exports.buyNumbers = async (req, res) => {
 
     const { balance } = balanceOfUser;
     const price = amount.price * process.env.PROFIT;
-    console.log(balanceOfUser, amount);
     if (balance < price) {
       return res.status(400).send({
         error: 'Insufficient balance.',

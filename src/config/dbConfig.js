@@ -9,33 +9,13 @@ const dbURI = dbUrl + dbName;
 mongoose.Promise = global.Promise;
 
 // console to check what is the dbURI refers to
-console.log("Database URL is =>>", dbURI);
-
-mongoose.set('bufferCommands', false);
+console.log('Database URL is =>>', dbURI);
 
 // Open the mongoose connection to the database
-mongoose.connect(dbURI, {
-	'autoIndex': false,
-});
+async function dbConnect() {
+  await mongoose.connect(dbURI);
+}
 
-// Db Connection
-var db = mongoose.connection;
-
-db.on('connected', function () {
-	console.log('Mongoose connected to ' + dbURI);
-});
-
-db.on('error', function (err) {
-	console.log('Mongoose connection error: ' + err);
-});
-
-db.on('disconnected', function () {
-	console.log('Mongoose disconnected');
-});
-
-process.on('SIGINT', function () {
-	db.close(function () {
-		console.log('Mongoose disconnected through app termination');
-		process.exit(0);
-	});
-});
+dbConnect()
+  .then(() => console.log(`mongoose connected to ${dbURI}`))
+  .catch((err) => console.error(err));
